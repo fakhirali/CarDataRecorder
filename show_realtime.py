@@ -1,17 +1,15 @@
+import pygame
+import sys
 import pickle as pkl
-import matplotlib.pyplot as plt
 
-#simulate on recorded data
-can_data = pkl.load(open('data/steering.pkl', 'rb'))
-
-
+# Load CAN data
+can_data = pkl.load(open('data/fakhir-uturn.pkl', 'rb'))
 can_data = can_data[2:]
 
 speed = []
 steering = []
 brake = []
 gas = []
-
 
 for can_signal in can_data:
     can_signal = can_signal.decode('utf-8').split()
@@ -76,24 +74,20 @@ for can_signal in can_data:
             value -= 2 ** length
         value = value * scale
         gas.append(value)
-# replay the thing
-
-import pygame
-import sys
-
+print(brake)
+print(steering)
 # Initialize Pygame
 pygame.init()
 
 # Set up display
 width, height = 800, 600
 window = pygame.display.set_mode((width, height))
-pygame.display.set_caption('Steering Wheel Simulation')
+pygame.display.set_caption('Real-time Vehicle Data Display')
 
-# List of steering values (example values)
-# steering_values = [0, 15, 30, 45, 60, 75, 90, 75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75, -90, -75, -60, -45, -30, -15, 0]
-steering_values = steering
+# Font for displaying text
+font = pygame.font.Font(None, 36)
 
-
+# Drawing functions
 def draw_steering_wheel(surface, angle_degrees):
     import math
     angle_radians = math.radians(angle_degrees + 90)
@@ -105,9 +99,19 @@ def draw_steering_wheel(surface, angle_degrees):
         center[1] - radius * math.sin(angle_radians)
     )
     pygame.draw.line(surface, (0, 0, 0), center, end_pos, 5)
+
+def draw_gas_pedal(surface, pressure):
+    pygame.draw.rect(surface, (0, 255, 0), (50, 300, pressure * 2, 30))
+
+def draw_brake_pedal(surface, pressure):
+    pygame.draw.rect(surface, (255, 0, 0), (50, 350, pressure * 2, 30))
+
+def draw_speedometer(surface, speed):
+    pygame.draw.rect(surface, (0, 0, 255), (50, 400, speed * 2, 30))
+
 # Main loop
 clock = pygame.time.Clock()
-index = 0
+idx = 0
 
 while True:
     for event in pygame.event.get():
@@ -118,19 +122,32 @@ while True:
     # Clear screen
     window.fill((255, 255, 255))
 
-    # Get current steering value
-    angle = steering_values[index]
-    index = (index + 1) % len(steering_values)
+    # Update variables with real-time data
+    steering_angle = steering[idx]
+    gas_pedal_pressure = gas[idx]
+    brake_pressure = brake[idx]
+    speed_val = speed[idx]
+    idx = idx + 1
 
-    # Draw steering wheel
-    draw_steering_wheel(window, angle)
+    # Draw visualizations
+    draw_steering_wheel(window, steering_angle)
+    draw_gas_pedal(window, gas_pedal_pressure)
+    draw_brake_pedal(window, brake_pressure)
+    draw_speedometer(window, speed_val)
+
+    # Display the variables
+    steering_text = font.render(f'Steering Angle: {steering_angle}°', True, (0, 0, 0))
+    gas_text = font.render(f'Gas Pedal Pressure: {gas_pedal_pressure}', True, (0, 0, 0))
+    brake_text = font.render(f'Brake Pressure: {brake_pressure}', True, (0, 0, 0))
+    speed_text = font.render(f'Speed: {speed_val} km/h', True, (0, 0, 0))
+
+    window.blit(steering_text, (50, 50))
+    window.blit(gas_text, (50, 100))
+    window.blit(brake_text, (50, 150))
+    window.blit(speed_text, (50, 200))
 
     # Update display
     pygame.display.flip()
 
     # Control the frame rate
-    clock.tick(10)
-
-
-
-
+    clock.tick(3)
