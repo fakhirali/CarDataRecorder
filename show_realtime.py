@@ -1,82 +1,13 @@
 import pygame
 import sys
 import pickle as pkl
+import serial
 
 # Load CAN data
-can_data = pkl.load(open('data/fakhir-uturn.pkl', 'rb'))
-can_data = can_data[2:]
+# can_data = pkl.load(open('data/fakhir-uturn.pkl', 'rb'))
+# can_data = can_data[2:]
 
-speed = []
-steering = []
-brake = []
-gas = []
-
-for can_signal in can_data:
-    can_signal = can_signal.decode('utf-8').split()
-    if len(can_signal) < 3:
-        continue
-    can_id = int(can_signal[0], 16)
-    can_length = int(can_signal[1])
-    can_frame = can_signal[2:]  # to remove id and length
-    new_can_frame = ''
-    for byte in can_frame:
-        if len(byte) == 1:
-            byte = '0' + byte
-        new_can_frame += byte
-    can_frame = [new_can_frame[i:i + 2] for i in range(0, len(new_can_frame), 2)]
-    if can_id == 180:  # SPEED
-        bit_start = 47
-        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
-        length = 16
-        scale = 0.01
-        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
-        bin_data = bin_str[bit_start:bit_start + length]
-        value = int(bin_data, 2) * scale
-        speed.append(value)
-    if can_id == 37:  # STEERING ANGLE
-        signed = True
-        bit_start = 2
-        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
-        length = 11
-        scale = 1
-        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
-        bin_data = bin_str[bit_start:bit_start + length]
-        value = int(bin_data, 2)
-        if value >= 2 ** (length - 1) and signed:
-            value -= 2 ** length
-        value = value * scale
-        steering.append(value)
-    if can_id == 548:  # BRAKE PRESSURE
-        signed = False
-        bit_start = 39
-        length = 16
-        scale = 1
-
-        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
-        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
-        bin_data = bin_str[bit_start:bit_start + length]
-        value = int(bin_data, 2)
-        if value >= 2 ** (length - 1) and signed:
-            value -= 2 ** length
-        value = value * scale
-        brake.append(value)
-    if can_id == 705:  # GAS PEDAL PRESSURE
-        signed = False
-        bit_start = 55
-        length = 8
-        scale = 1
-
-        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
-        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
-        bin_data = bin_str[bit_start:bit_start + length]
-        value = int(bin_data, 2)
-        if value >= 2 ** (length - 1) and signed:
-            value -= 2 ** length
-        value = value * scale
-        gas.append(value)
-print(brake)
-print(steering)
-# Initialize Pygame
+ser = serial.Serial("/dev/ttyACM0", 115200)
 pygame.init()
 
 # Set up display
@@ -112,8 +43,71 @@ def draw_speedometer(surface, speed):
 # Main loop
 clock = pygame.time.Clock()
 idx = 0
+speed, gas, brake,steering = 0,0,0,0
 
 while True:
+    can_signal = ser.readline()
+    can_signal = can_signal.decode('utf-8').split()
+    if len(can_signal) <= 3:
+        continue
+    can_id = int(can_signal[0], 16)
+    try:
+        can_length = int(can_signal[1])
+    except:
+        continue
+    can_frame = can_signal[2:]  # to remove id and length
+    new_can_frame = ''
+    for byte in can_frame:
+        if len(byte) == 1:
+            byte = '0' + byte
+        new_can_frame += byte
+    can_frame = [new_can_frame[i:i + 2] for i in range(0, len(new_can_frame), 2)]
+    if can_id == 180:  # SPEED
+        bit_start = 47
+        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
+        length = 16
+        scale = 0.01
+        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
+        bin_data = bin_str[bit_start:bit_start + length]
+        speed = int(bin_data, 2) * scale
+    if can_id == 37:  # STEERING ANGLE
+        signed = True
+        bit_start = 2
+        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
+        length = 11
+        scale = 1
+        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
+        bin_data = bin_str[bit_start:bit_start + length]
+        value = int(bin_data, 2)
+        if value >= 2 ** (length - 1) and signed:
+            value -= 2 ** length
+        steering = value * scale
+    if can_id == 548:  # BRAKE PRESSURE
+        signed = False
+        bit_start = 39
+        length = 16
+        scale = 1
+
+        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
+        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
+        bin_data = bin_str[bit_start:bit_start + length]
+        value = int(bin_data, 2)
+        if value >= 2 ** (length - 1) and signed:
+            value -= 2 ** length
+        brake = value * scale
+    if can_id == 705:  # GAS PEDAL PRESSURE
+        signed = False
+        bit_start = 55
+        length = 8
+        scale = 1
+
+        bit_start = ((bit_start // 8) * 8) + (7 - (bit_start % 8))
+        bin_str = bin(int(''.join(can_frame), 16))[2:].zfill(64)
+        bin_data = bin_str[bit_start:bit_start + length]
+        value = int(bin_data, 2)
+        if value >= 2 ** (length - 1) and signed:
+            value -= 2 ** length
+        gas = value * scale
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -123,17 +117,16 @@ while True:
     window.fill((255, 255, 255))
 
     # Update variables with real-time data
-    steering_angle = steering[idx]
-    gas_pedal_pressure = gas[idx]
-    brake_pressure = brake[idx]
-    speed_val = speed[idx]
-    idx = idx + 1
+    steering_angle = steering
+    gas_pedal_pressure = gas
+    brake_pressure = brake
+    speed_val = speed
 
     # Draw visualizations
     draw_steering_wheel(window, steering_angle)
     draw_gas_pedal(window, gas_pedal_pressure)
     draw_brake_pedal(window, brake_pressure)
-    draw_speedometer(window, speed_val)
+    # draw_speedometer(window, speed_val)
 
     # Display the variables
     steering_text = font.render(f'Steering Angle: {steering_angle}°', True, (0, 0, 0))
@@ -150,4 +143,4 @@ while True:
     pygame.display.flip()
 
     # Control the frame rate
-    clock.tick(3)
+    clock.tick(120)
